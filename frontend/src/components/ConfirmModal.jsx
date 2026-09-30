@@ -30,40 +30,34 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, title, messag
   const rootRef = useRef(null);
   const panelRef = useRef(null);
   const cancelRef = useRef(null);
-  // Keep the latest loading flag / onClose available to listeners without re-running effects.
-  const loadingRef = useRef(loading);
-  loadingRef.current = loading;
 
-  // Move focus in on open, restore it on close.
+  // While open: make the rest of the page inert and move focus into the dialog.
+  // On close: lift inert first (an inert element can't take focus), then restore focus.
   useEffect(() => {
     if (!isOpen) return undefined;
     const previouslyFocused = document.activeElement;
+    const root = rootRef.current;
+
+    const siblings = Array.from(document.body.children).filter(
+      (el) => el !== root && !el.hasAttribute('inert')
+    );
+    siblings.forEach((el) => el.setAttribute('inert', ''));
 
     const initial = cancelRef.current && !cancelRef.current.disabled ? cancelRef.current : panelRef.current;
     initial?.focus();
 
     return () => {
+      siblings.forEach((el) => el.removeAttribute('inert'));
       if (previouslyFocused && typeof previouslyFocused.focus === 'function' && document.contains(previouslyFocused)) {
         previouslyFocused.focus();
       }
     };
   }, [isOpen]);
 
-  // Make the rest of the page inert while the dialog is open.
-  useEffect(() => {
-    if (!isOpen) return undefined;
-    const root = rootRef.current;
-    const siblings = Array.from(document.body.children).filter(
-      (el) => el !== root && !el.hasAttribute('inert')
-    );
-    siblings.forEach((el) => el.setAttribute('inert', ''));
-    return () => siblings.forEach((el) => el.removeAttribute('inert'));
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
   const cancel = () => {
-    if (!loadingRef.current) onClose?.();
+    if (!loading) onClose?.();
   };
 
   const handleKeyDown = (e) => {
@@ -107,7 +101,8 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, title, messag
       : 'bg-primary-500 hover:bg-primary-600';
 
   return createPortal(
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- keyboard handling lives here so it covers the whole dialog; Escape is the keyboard equivalent of the backdrop click
+    // Keyboard handling sits on the backdrop so it covers the whole dialog;
+    // Escape is the keyboard equivalent of clicking the backdrop.
     <div
       ref={rootRef}
       className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
